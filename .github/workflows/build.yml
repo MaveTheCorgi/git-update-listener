@@ -28,3 +28,21 @@ jobs:
         with:
           name: plugin-zip
           path: build/distributions/*.zip
+
+      - name: Extract version from plugin.xml
+        id: plugin_version
+        run: |
+          VERSION=$(grep -o '<version>[^<]*</version>' src/main/resources/META-INF/plugin.xml | sed 's/<version>\(.*\)<\/version>/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.plugin_version.outputs.version }}
+          name: Release v${{ steps.plugin_version.outputs.version }}
+          files: build/distributions/*.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
