@@ -14,6 +14,7 @@ public class TriggerSettings implements PersistentStateComponent<TriggerSettings
     public String targetConfigName = "runProduction";
     public String targetBranch = "beta";
     public int listenPort = 12345;
+    public String discordWebhookUrl = "";
 
     public static TriggerSettings getInstance() {
         return ApplicationManager.getApplication().getService(TriggerSettings.class);

@@ -14,9 +14,7 @@ import dev.mave.gitupdatelistener.plugin.model.TriggerSettings;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
+import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -99,8 +97,127 @@ public final class TriggerService {
 
         if ("push".equals(eventType) && payload.contains("\"ref\":\"refs/heads/" + settings.targetBranch + "\"")) {
             LOG.info("Detected update to target branch '" + settings.targetBranch + "'. Scheduling configuration rerun...");
-            ApplicationManager.getApplication().invokeLater(this::rerunTargetConfig);
+
+            String commitMessage = extractCommitMessage(payload);
+            String authorName = extractAuthorName(payload);
+            String repoName = extractRepoName(payload);
+
+            ApplicationManager.getApplication().invokeLater(() -> {
+                rerunTargetConfig();
+
+                if (settings.discordWebhookUrl != null && !settings.discordWebhookUrl.isEmpty()) {
+                    String title = "🔄 Run Configuration Triggered: " + settings.targetConfigName;
+                    String description = String.format("Branch `%s` in repo `%s` was updated.\n%s",
+                            settings.targetBranch, repoName, commitMessage);
+                    sendDiscordNotification(title, description, authorName);
+                }
+            });
         }
+    }
+
+    /**
+     * Extract the commit message from the webhook payload
+     */
+    private String extractCommitMessage(String payload) {
+        try {
+            int headCommitIndex = payload.indexOf("\"head_commit\":");
+            if (headCommitIndex >= 0) {
+                int messageStart = payload.indexOf("\"message\":\"", headCommitIndex) + 11;
+                int messageEnd = payload.indexOf("\"", messageStart);
+                return payload.substring(messageStart, messageEnd);
+            }
+        } catch (Exception e) {
+            LOG.warn("Could not extract commit message", e);
+        }
+        return "No commit message available";
+    }
+
+    /**
+     * Extract the author name from the webhook payload
+     */
+    private String extractAuthorName(String payload) {
+        try {
+            int headCommitIndex = payload.indexOf("\"head_commit\":");
+            if (headCommitIndex >= 0) {
+                int authorIndex = payload.indexOf("\"author\":", headCommitIndex);
+                int nameStart = payload.indexOf("\"name\":\"", authorIndex) + 8;
+                int nameEnd = payload.indexOf("\"", nameStart);
+                return payload.substring(nameStart, nameEnd);
+            }
+        } catch (Exception e) {
+            LOG.warn("Could not extract author name", e);
+        }
+        return "Unknown";
+    }
+
+    /**
+     * Extract the repository name from the webhook payload
+     */
+    private String extractRepoName(String payload) {
+        try {
+            int repoIndex = payload.indexOf("\"repository\":");
+            if (repoIndex >= 0) {
+                int nameStart = payload.indexOf("\"name\":\"", repoIndex) + 8;
+                int nameEnd = payload.indexOf("\"", nameStart);
+                return payload.substring(nameStart, nameEnd);
+            }
+        } catch (Exception e) {
+            LOG.warn("Could not extract repository name", e);
+        }
+        return "Unknown";
+    }
+
+    /**
+     * Sends a Discord notification with the commit details to the specified webhook URL.
+     */
+    private void sendDiscordNotification(String title, String description, String commitAuthor) {
+        TriggerSettings settings = TriggerSettings.getInstance();
+        if (settings.discordWebhookUrl == null || settings.discordWebhookUrl.isEmpty()) {
+            return;
+        }
+
+        try {
+            URL url = new URL(settings.discordWebhookUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setDoOutput(true);
+
+            String jsonPayload = String.format(
+                    "{\"embeds\":[{" +
+                            "\"title\":\"%s\"," +
+                            "\"description\":\"%s\"," +
+                            "\"color\":5814783," +
+                            "\"footer\":{\"text\":\"Commit by: %s\"}," +
+                            "\"timestamp\":\"%s\"" +
+                            "}]}",
+                    escapeJson(title),
+                    escapeJson(description),
+                    escapeJson(commitAuthor),
+                    java.time.Instant.now().toString()
+            );
+
+            try (OutputStream os = connection.getOutputStream()) {
+                byte[] input = jsonPayload.getBytes(StandardCharsets.UTF_8);
+                os.write(input, 0, input.length);
+            }
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode < 200 || responseCode >= 300) {
+                LOG.warn("Discord notification failed with code: " + responseCode);
+            }
+        } catch (Exception e) {
+            LOG.error("Error sending Discord notification", e);
+        }
+    }
+
+    private String escapeJson(String text) {
+        if (text == null) return "";
+        return text.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
     /**

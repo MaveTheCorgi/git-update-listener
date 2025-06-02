@@ -15,10 +15,12 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class TriggerSettingsConfigurable implements Configurable {
     private JBTextField branchField;
     private JBTextField portField;
+    private JBTextField discordWebhookField;
     private ComboBox<String> configComboBox;
 
     @Nls(capitalization = Nls.Capitalization.Title)
@@ -34,6 +36,7 @@ public class TriggerSettingsConfigurable implements Configurable {
 
         branchField = new JBTextField(settings.targetBranch);
         portField = new JBTextField(Integer.toString(settings.listenPort));
+        discordWebhookField = new JBTextField(settings.discordWebhookUrl);
         configComboBox = new ComboBox<>();
 
         Project[] projects = ProjectManager.getInstance().getOpenProjects();
@@ -51,6 +54,7 @@ public class TriggerSettingsConfigurable implements Configurable {
                 .addLabeledComponent(new JBLabel("Run Configuration:"), configComboBox)
                 .addLabeledComponent(new JBLabel("Target Branch:"), branchField)
                 .addLabeledComponent(new JBLabel("Listen Port:"), portField)
+                .addLabeledComponent(new JBLabel("Discord Webhook URL (Optional):"), discordWebhookField)
                 .addComponentFillVertically(new JPanel(), 0)
                 .getPanel();
     }
@@ -64,6 +68,7 @@ public class TriggerSettingsConfigurable implements Configurable {
             modified |= !settings.targetConfigName.equals(configComboBox.getSelectedItem());
         }
         modified |= !settings.targetBranch.equals(branchField.getText());
+        modified |= !Objects.equals(settings.discordWebhookUrl, discordWebhookField.getText());
 
         try {
             int port = Integer.parseInt(portField.getText());
@@ -82,6 +87,7 @@ public class TriggerSettingsConfigurable implements Configurable {
             settings.targetConfigName = (String) configComboBox.getSelectedItem();
         }
         settings.targetBranch = branchField.getText();
+        settings.discordWebhookUrl = discordWebhookField.getText();
         try {
             settings.listenPort = Integer.parseInt(portField.getText());
         } catch (NumberFormatException ignored) { }
@@ -93,5 +99,6 @@ public class TriggerSettingsConfigurable implements Configurable {
         configComboBox.setSelectedItem(settings.targetConfigName);
         branchField.setText(settings.targetBranch);
         portField.setText(Integer.toString(settings.listenPort));
+        discordWebhookField.setText(settings.discordWebhookUrl);
     }
 }
