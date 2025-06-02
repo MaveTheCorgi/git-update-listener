@@ -19,7 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-@Service
+@Service(Service.Level.APP)
 public final class TriggerService {
     private static final Logger LOG = Logger.getInstance(TriggerService.class);
 
