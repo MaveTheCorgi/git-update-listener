@@ -1,7 +1,7 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
-    <id>dev.mave.git-update-listener</id>
+    <id>dev.mave.gitupdatelistener</id>
 
     <!-- Plugin version (semantic versioning recommended) -->
     <version>1.0.0</version>
@@ -17,13 +17,25 @@
          Simple HTML elements (text formatting, paragraphs, and lists) can be added inside of <![CDATA[ ]]> tag.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-    <p>
-      On IDE startup, this plugin listens on TCP port <code>12345</code>. When the plugin
-      receives the line <code>"restart"</code> (case-sensitive) from any localhost client,
-      it locates the Run Configuration named <code>"MyApp-Beta"</code> and re-runs it
-      programmatically without killing the entire IDE process.
-    </p>
-  ]]></description>
+<p>A Git Update Listener plugin that automatically restarts specified IntelliJ run configurations when GitHub webhook events are received.</p>
+<p>Features:</p>
+<ul>
+  <li>Listens for GitHub webhook push events on a configurable port</li>
+  <li>Targets a specific branch that you can configure</li>
+  <li>Automatically reruns a selected run configuration when the target branch is updated</li>
+  <li>Fully configurable through the Settings UI</li>
+</ul>
+<p>Perfect for automatically deploying or running tests when your GitHub repository is updated.</p>
+]]></description>
+
+    <change-notes><![CDATA[
+<h3>1.0.0</h3>
+<ul>
+  <li>Initial release</li>
+  <li>Support for GitHub push webhooks</li>
+  <li>Configurable run configurations, branch names, and port numbers</li>
+</ul>
+]]></change-notes>
 
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
@@ -32,9 +44,9 @@
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
-        <applicationService serviceImplementation="dev.mave.gitupdatelistener.plugin.TriggerSettings"/>
+        <applicationService serviceImplementation="dev.mave.gitupdatelistener.plugin.model.TriggerSettings"/>
         <applicationConfigurable parentId="tools"
-                                 instance="dev.mave.gitupdatelistener.plugin.TriggerSettingsConfigurable"
+                                 instance="dev.mave.gitupdatelistener.plugin.model.TriggerSettingsConfigurable"
                                  id="dev.mave.gitupdatelistener.plugin.TriggerSettingsConfigurable"
                                  displayName="Git Update Listener"/>
     </extensions>
