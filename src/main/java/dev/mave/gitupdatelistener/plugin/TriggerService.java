@@ -1,9 +1,13 @@
 package dev.mave.gitupdatelistener.plugin;
 
+import com.intellij.execution.ExecutionManager;
 import com.intellij.execution.RunManager;
 import com.intellij.execution.RunnerAndConfigurationSettings;
 import com.intellij.execution.executors.DefaultRunExecutor;
+import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.runners.ExecutionUtil;
+import com.intellij.execution.ui.RunContentDescriptor;
+import com.intellij.execution.ui.RunContentManager;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.diagnostic.Logger;
@@ -17,6 +21,7 @@ import java.io.OutputStream;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.io.File;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service(Service.Level.APP)
@@ -220,10 +225,6 @@ public final class TriggerService {
                 .replace("\t", "\\t");
     }
 
-    /**
-     * Locate any open project, fetch its RunManager, find the configuration named TARGET_CONFIG_NAME,
-     * and rerun it using the DefaultRunExecutor.
-     */
     private void rerunTargetConfig() {
         TriggerSettings settings = TriggerSettings.getInstance();
         Project[] openProjects = ProjectManager.getInstance().getOpenProjects();
@@ -238,11 +239,71 @@ public final class TriggerService {
             return;
         }
 
+        // Pull Git changes first
+        ApplicationManager.getApplication().invokeLater(() -> {
+            String projectPath = project.getBasePath();
+            if (projectPath == null) {
+                LOG.error("Project base path is null. Skipping Git pull.");
+                runTargetConfig(project, settings);
+                return;
+            }
+
+            try {
+                LOG.info("Pulling Git changes for project: " + project.getName());
+
+                // Create process to get current branch
+                ProcessBuilder checkBranchBuilder = new ProcessBuilder("git", "rev-parse", "--abbrev-ref", "HEAD");
+                checkBranchBuilder.directory(new File(projectPath));
+                Process branchProcess = checkBranchBuilder.start();
+
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(branchProcess.getInputStream()))) {
+                    String currentBranch = reader.readLine();
+                    int exitCode = branchProcess.waitFor();
+
+                    if (exitCode != 0) {
+                        LOG.error("Failed to get current branch, exit code: " + exitCode);
+                        runTargetConfig(project, settings);
+                        return;
+                    }
+
+                    LOG.info("Current branch: " + currentBranch);
+
+                    // Only pull if we're on the target branch
+                    if (settings.targetBranch.equals(currentBranch)) {
+                        // Run git pull
+                        ProcessBuilder pullBuilder = new ProcessBuilder("git", "pull");
+                        pullBuilder.directory(new File(projectPath));
+                        pullBuilder.redirectErrorStream(true);
+                        Process pullProcess = pullBuilder.start();
+
+                        // Log the output from git pull
+                        StringBuilder output = new StringBuilder();
+                        try (BufferedReader pullReader = new BufferedReader(new InputStreamReader(pullProcess.getInputStream()))) {
+                            String line;
+                            while ((line = pullReader.readLine()) != null) {
+                                output.append(line).append("\n");
+                            }
+                        }
+
+                        int pullExitCode = pullProcess.waitFor();
+                        LOG.info("Git pull completed with exit code: " + pullExitCode);
+                        LOG.info("Git pull output: " + output.toString().trim());
+                    } else {
+                        LOG.info("Skipping Git pull - current branch '" + currentBranch +
+                                "' is not the target branch '" + settings.targetBranch + "'");
+                    }
+                }
+            } catch (Exception e) {
+                LOG.error("Error pulling Git changes", e);
+            }
+
+            // Continue with rerunning the target configuration
+            runTargetConfig(project, settings);
+        });
+    }
+
+    private void runTargetConfig(Project project, TriggerSettings settings) {
         RunManager runManager = RunManager.getInstance(project);
-        if (runManager == null) {
-            LOG.error("RunManager is null for project: " + project.getName());
-            return;
-        }
 
         List<RunnerAndConfigurationSettings> allSettings = runManager.getAllSettings();
         RunnerAndConfigurationSettings targetSettings = null;
@@ -258,7 +319,34 @@ public final class TriggerService {
             return;
         }
 
-        ExecutionUtil.runConfiguration(targetSettings, DefaultRunExecutor.getRunExecutorInstance());
+        final RunnerAndConfigurationSettings finalTargetSettings = targetSettings;
+
+        ExecutionManager executionManager = ExecutionManager.getInstance(project);
+        ProcessHandler[] runningProcesses = executionManager.getRunningProcesses();
+
+        for (ProcessHandler process : runningProcesses) {
+
+            List<RunContentDescriptor> descriptors = RunContentManager.getInstance(project).getAllDescriptors();
+
+            RunContentDescriptor descriptor = descriptors.stream()
+                    .filter(d -> d.getProcessHandler() == process)
+                    .findFirst()
+                    .orElse(null);
+
+            if (descriptor != null &&
+                    descriptor.getDisplayName() != null &&
+                    descriptor.getDisplayName().contains(settings.targetConfigName)) {
+                LOG.info("Terminating existing process for: " + settings.targetConfigName);
+                process.destroyProcess();
+                try {
+                    process.waitFor(3000);
+                } catch (Exception e) {
+                    LOG.warn("Error waiting for process termination", e);
+                }
+            }
+        }
+
+        ExecutionUtil.runConfiguration(finalTargetSettings, DefaultRunExecutor.getRunExecutorInstance());
         LOG.info("Rerun triggered for configuration: " + settings.targetConfigName);
     }
 

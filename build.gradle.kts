@@ -5,18 +5,15 @@ plugins {
 }
 
 group = "dev.mave"
-version = "1.0.4"
+version = "1.0.5"
 
 repositories {
     mavenCentral()
 }
 
-// Configure Gradle IntelliJ Plugin
-// Read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
 intellij {
     version.set("2022.3")
     updateSinceUntilBuild.set(true)
-
 }
 
 tasks {
