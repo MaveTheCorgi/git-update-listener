@@ -4,11 +4,11 @@
     <id>dev.mave.gitupdatelistener</id>
 
     <!-- Plugin version (semantic versioning recommended) -->
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
-    <name>Git-update-listener</name>
+    <name>Git Update Listener</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
     <vendor email="mavethecorgi@gmail.com" url="https://www.yourcompany.com">RainbowCorgiStudios</vendor>
@@ -41,13 +41,15 @@
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
 
+    <idea-version since-build="223" until-build="241.*"/>
+
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
         <applicationService serviceImplementation="dev.mave.gitupdatelistener.plugin.model.TriggerSettings"/>
         <applicationConfigurable parentId="tools"
                                  instance="dev.mave.gitupdatelistener.plugin.model.TriggerSettingsConfigurable"
-                                 id="dev.mave.gitupdatelistener.plugin.TriggerSettingsConfigurable"
+                                 id="dev.mave.gitupdatelistener.plugin.model.TriggerSettingsConfigurable"
                                  displayName="Git Update Listener"/>
     </extensions>
 </idea-plugin>
